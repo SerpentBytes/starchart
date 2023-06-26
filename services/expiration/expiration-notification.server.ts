@@ -49,8 +49,8 @@ export function init() {
         logger.debug(`Notifications: processing job ${job.name}`);
         let dnsRecords = await getExpiringDnsRecords();
         await Promise.all(
-          dnsRecords.map(async ({ id, subdomain, expiresAt, user }) => {
-            await updateStatusAndNotify('dns-record', id, {
+          dnsRecords.map(async ({ id, subdomain, expiresAt, lastNotified, user }) => {
+            await updateStatusAndNotify('dns-record', id, lastNotified, {
               emailAddress: user.email,
               subject: 'My.Custom.Domain DNS record approaching expiration',
               message: `${
@@ -63,8 +63,8 @@ export function init() {
         );
         let certificates = await getExpiringCertificates();
         await Promise.all(
-          certificates.map(async ({ id, domain, validTo, user }) => {
-            await updateStatusAndNotify('certificate', id, {
+          certificates.map(async ({ id, domain, validTo, lastNotified, user }) => {
+            await updateStatusAndNotify('certificate', id, lastNotified, {
               emailAddress: user.email,
               subject: 'My.Custom.Domain certificate approaching expiration',
               message: `${
@@ -178,7 +178,16 @@ async function addExpirationNotifications(type: string) {
 }
 
 // function to update notification and add notification jobs
-const updateStatusAndNotify = async (type: string, id: number, data: NotificationData) => {
+const updateStatusAndNotify = async (
+  type: string,
+  id: number,
+  lastNotified: Date | null,
+  data: NotificationData
+) => {
+  if (lastNotified) {
+    logger.debug('Skipping adding notification job - user already notified');
+    return;
+  }
   const { emailAddress, subject, message } = data;
   await updateNotificationStatus(type, id);
   await addNotification({
